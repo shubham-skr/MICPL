@@ -170,26 +170,33 @@ class COCO(data.Dataset):
         video_id, frame_id = base_name.split('_')
         frame_id = int(frame_id)
         imtype = '.' + file_name.split('.')[-1]
+
         img = np.zeros([self.resolution[0], self.resolution[1], 3, seq_num])
+        # 🔥 ALWAYS LOAD CURRENT FRAME FIRST (SAFE)
+        curr_path = os.path.join(self.img_dir, file_name)
+        imgOri = cv2.imread(curr_path)
+
+        if imgOri is None:
+            raise RuntimeError(f"❌ Cannot load image: {curr_path}")
 
         for ii in range(seq_num):
-            # FIX 
             prev_frame = max(frame_id - ii, 1)
             imName = f"{video_id}_{prev_frame:06d}{imtype}"
             im_path = os.path.join(self.img_dir, imName)
-            if not os.path.exists(im_path):
-                im = imgOri.copy()
-            else: 
+
+            if os.path.exists(im_path):
                 im = cv2.imread(im_path)
+            else:
+                im = imgOri.copy() 
+
             if im is None:
-                # fallback: repeat current frame
-                im = imgOri.copy() if ii > 0 else np.zeros_like(imgOri)
-            if(ii==0):
-                imgOri = im
-            #normalize
+                im = imgOri.copy()
+
+            # normalize
             inp_i = (im.astype(np.float32) / 255.)
             inp_i = (inp_i - self.mean) / self.std
-            img[:,:,:,ii] = inp_i
+
+            img[:, :, :, ii] = inp_i
 
         bbox_tol = []
         cls_id_tol = []

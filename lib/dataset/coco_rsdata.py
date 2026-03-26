@@ -165,15 +165,25 @@ class COCO(data.Dataset):
         num_objs = min(len(anns), self.max_objs)
 
         seq_num = self.seqLen
-        imIdex = int(file_name.split('.')[0].split('/')[-1])
-        imf = file_name.split(file_name.split('/')[-1])[0]
-        imtype = '.'+file_name.split('.')[-1]
+        # FIX 
+        base_name = file_name.split('.')[0]   # 001_000123
+        video_id, frame_id = base_name.split('_')
+        frame_id = int(frame_id)
+        imtype = '.' + file_name.split('.')[-1]
         img = np.zeros([self.resolution[0], self.resolution[1], 3, seq_num])
 
         for ii in range(seq_num):
-            imIndexNew = '%06d' % max(imIdex - ii, 1)
-            imName = imf+imIndexNew+imtype
-            im = cv2.imread(self.img_dir + imName)
+            # FIX 
+            prev_frame = max(frame_id - ii, 1)
+            imName = f"{video_id}_{prev_frame:06d}{imtype}"
+            im_path = os.path.join(self.img_dir, imName)
+            if not os.path.exists(im_path):
+                im = imgOri.copy()
+            else: 
+                im = cv2.imread(im_path)
+            if im is None:
+                # fallback: repeat current frame
+                im = imgOri.copy() if ii > 0 else np.zeros_like(imgOri)
             if(ii==0):
                 imgOri = im
             #normalize

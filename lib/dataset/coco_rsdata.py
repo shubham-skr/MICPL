@@ -179,6 +179,9 @@ class COCO(data.Dataset):
         if imgOri is None:
             raise RuntimeError(f"❌ Cannot load image: {curr_path}")
 
+        # resize imgOri also
+        imgOri = cv2.resize(imgOri, (self.resolution[1], self.resolution[0]))
+
         for ii in range(seq_num):
             prev_frame = max(frame_id - ii, 1)
             imName = f"{video_id}_{prev_frame:06d}{imtype}"
@@ -186,13 +189,13 @@ class COCO(data.Dataset):
 
             if os.path.exists(im_path):
                 im = cv2.imread(im_path)
-            else:
-                im = imgOri.copy() 
 
             if im is None:
                 im = imgOri.copy()
 
-            # normalize
+            # RESIZE 
+            im = cv2.resize(im, (self.resolution[1], self.resolution[0]))
+
             inp_i = (im.astype(np.float32) / 255.)
             inp_i = (inp_i - self.mean) / self.std
 

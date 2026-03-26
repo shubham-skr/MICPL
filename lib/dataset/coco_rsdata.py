@@ -41,7 +41,7 @@ class COCO(data.Dataset):
 
         self.img_dir0 = self.opt.data_dir
 
-        self.img_dir = self.opt.data_dir
+        self.img_dir = os.path.join(self.opt.data_dir, 'images', split)
 
         if opt.test_large_size:
 

@@ -51,17 +51,17 @@ class COCO(data.Dataset):
                 self.resolution = [512, 512]
                 self.annot_path = os.path.join(
                     self.img_dir0, 'annotations',
-                    'instances_{}2017.json').format(split)
+                    'instances_{}.json').format(split)
             else:
                 self.resolution = [1024, 1024]
                 self.annot_path = os.path.join(
                     self.img_dir0, 'annotations',
-                    'instances_{}2017_1024.json').format(split)
+                    'instances_{}.json').format(split)
         else:
             self.resolution = [512, 512]
             self.annot_path = os.path.join(
                 self.img_dir0, 'annotations',
-                'instances_{}2017.json').format(split)
+                'instances_{}.json').format(split)
 
         self.down_ratio = opt.down_ratio
         self.max_objs = opt.K

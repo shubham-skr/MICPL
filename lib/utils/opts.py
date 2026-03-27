@@ -82,12 +82,12 @@ class opts(object):
         opt.save_dir = opt.save_dir + '/' + opt.datasetname
 
         if (not os.path.exists(opt.save_dir)):
-            os.mkdir(opt.save_dir)
+            os.makedirs(opt.save_dir, exist_ok=True)
 
         opt.save_dir = opt.save_dir + '/' + opt.model_name
 
         if (not os.path.exists(opt.save_dir)):
-            os.mkdir(opt.save_dir)
+            os.makedirs(opt.save_dir, exist_ok=True)
 
         opt.save_results_dir = opt.save_dir+'/results'
 

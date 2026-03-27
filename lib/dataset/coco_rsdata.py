@@ -39,7 +39,7 @@ class COCO(data.Dataset):
         super(COCO, self).__init__()
         self.opt = opt
         self.split = split
-        
+
         self.img_dir0 = self.opt.data_dir
 
         self.img_dir = os.path.join(self.opt.data_dir, 'images', split)
@@ -296,7 +296,7 @@ class COCO(data.Dataset):
             bbox_tol.append([])
 
 
-        ret = {'input': inp, 'hm': hm, 'reg_mask': reg_mask, 'ind': ind, 'wh': wh, 'imgOri': imgOri}
+        ret = {'input': inp, 'hm': hm, 'reg_mask': reg_mask, 'ind': ind, 'wh': wh, 'imgOri': imgOri, 'orig_size': np.array([orig_h, orig_w], dtype=np.float32)}
 
         if self.dense_wh:
             hm_a = hm.max(axis=0, keepdims=True)

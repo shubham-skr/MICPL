@@ -84,42 +84,42 @@ def main(opt):
     best = -1
 
     for epoch in range(start_epoch + 1, opt.num_epochs + 1):
-            
-
         log_dict_train, _ = trainer.train(epoch, train_loader)
-
         logger.write('epoch: {} |'.format(epoch))
 
+        # Always save last model (overwrite)
         save_model(os.path.join(opt.save_dir, 'model_last.pth'),
-                   epoch, model, optimizer)
+                epoch, model, optimizer)
 
         for k, v in log_dict_train.items():
             logger.write('{} {:8f} | '.format(k, v))
+
         if val_intervals > 0 and epoch % val_intervals == 0:
-            save_model(os.path.join(opt.save_dir, 'model_{}.pth'.format(epoch)),
-                       epoch, model, optimizer)
             with torch.no_grad():
-                log_dict_val, preds, stats = trainer.val(epoch, val_loader,base_s, DataVal)
+                log_dict_val, preds, stats = trainer.val(epoch, val_loader, base_s, DataVal)
+
             for k, v in log_dict_val.items():
                 logger.write('{} {:8f} | '.format(k, v))
+
             logger.write('eval results: ')
             for k in stats.tolist():
                 logger.write('{:8f} | '.format(k))
+
+            # Save ONLY best model
             if log_dict_val['ap50'] > best:
                 best = log_dict_val['ap50']
                 save_model(os.path.join(opt.save_dir, 'model_best.pth'),
-                           epoch, model)
-        else:
-            save_model(os.path.join(opt.save_dir, 'model_last.pth'),
-                       epoch, model, optimizer)
+                        epoch, model)
+
         logger.write('\n')
+
+        # LR schedule (no saving)
         if epoch in opt.lr_step:
-            save_model(os.path.join(opt.save_dir, 'model_{}.pth'.format(epoch)),
-                       epoch, model, optimizer)
             lr = opt.lr * (0.1 ** (opt.lr_step.index(epoch) + 1))
             print('Drop LR to', lr)
             for param_group in optimizer.param_groups:
                 param_group['lr'] = lr
+                
     logger.close()
 
 if __name__ == '__main__':

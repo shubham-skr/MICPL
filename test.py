@@ -9,7 +9,7 @@ import torch
 
 from lib.utils.opts import opts
 from lib.models.stNet import get_det_net, load_model
-from lib.dataset.coco_rsdata import COCO   # ✅ FIXED
+from lib.dataset.coco_rsdata import COCO  
 
 from lib.external.nms import soft_nms
 from lib.utils.decode import ctdet_decode
@@ -126,6 +126,21 @@ def test(opt, split, model_path):
         output, dets = process(model, image)
 
         dets = post_process(dets, meta, dataset.num_classes)
+
+        # NEW: RESCALE BACK TO ORIGINAL SIZE
+        orig_h, orig_w = batch['orig_size'][0].cpu().numpy()
+
+        inp_h, inp_w = batch['input'].shape[2:4]
+
+        scale_x = orig_w / inp_w
+        scale_y = orig_h / inp_h
+
+        for j in dets:
+            if len(dets[j]) > 0:
+                dets[j][:, 0] *= scale_x
+                dets[j][:, 2] *= scale_x
+                dets[j][:, 1] *= scale_y
+                dets[j][:, 3] *= scale_y
 
         results_per_img = merge_outputs([dets], dataset.num_classes, opt.K)
 

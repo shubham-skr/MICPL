@@ -26,7 +26,7 @@ from lib.utils.augmentations import Augmentation
 import torch.utils.data as data
 
 class COCO(data.Dataset):
-    opt = opts().parse()
+    # opt = opts().parse()
     num_classes = 1
     default_resolution = [512,512]
     dense_wh = False
@@ -68,7 +68,7 @@ class COCO(data.Dataset):
         self.class_name = [
             '__background__', 'car']
         self._valid_ids = [
-            1, 2]
+            1]
         self.cat_ids = {v: i for i, v in enumerate(self._valid_ids)}  # 生成对应的category dict
 
         self.split = split
@@ -172,15 +172,26 @@ class COCO(data.Dataset):
         imtype = '.' + file_name.split('.')[-1]
 
         img = np.zeros([self.resolution[0], self.resolution[1], 3, seq_num])
-        # 🔥 ALWAYS LOAD CURRENT FRAME FIRST (SAFE)
+        # ALWAYS LOAD CURRENT FRAME FIRST (SAFE)
         curr_path = os.path.join(self.img_dir, file_name)
+        
         imgOri = cv2.imread(curr_path)
 
         if imgOri is None:
             raise RuntimeError(f"❌ Cannot load image: {curr_path}")
 
-        # resize imgOri also
-        imgOri = cv2.resize(imgOri, (self.resolution[1], self.resolution[0]))
+        # ORIGINAL SIZE
+        orig_h, orig_w = imgOri.shape[:2]
+
+        # TARGET SIZE
+        new_h, new_w = self.resolution
+
+        # SCALE FACTORS
+        scale_x = new_w / orig_w
+        scale_y = new_h / orig_h
+
+        # RESIZE IMAGE
+        imgOri = cv2.resize(imgOri, (new_w, new_h))
 
         for ii in range(seq_num):
             prev_frame = max(frame_id - ii, 1)
@@ -206,7 +217,16 @@ class COCO(data.Dataset):
 
         for k in range(num_objs):
             ann = anns[k]
-            bbox_tol.append(self._coco_box_to_bbox(ann['bbox']))
+
+            bbox = self._coco_box_to_bbox(ann['bbox'])
+
+            # SCALE BBOX (CRITICAL FIX)
+            bbox[0] *= scale_x
+            bbox[2] *= scale_x
+            bbox[1] *= scale_y
+            bbox[3] *= scale_y
+
+            bbox_tol.append(bbox)
             cls_id_tol.append(self.cat_ids[ann['category_id']])
 
         if self.aug is not None and num_objs>0:

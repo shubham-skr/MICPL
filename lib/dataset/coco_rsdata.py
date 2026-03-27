@@ -26,7 +26,6 @@ from lib.utils.augmentations import Augmentation
 import torch.utils.data as data
 
 class COCO(data.Dataset):
-    # opt = opts().parse()
     num_classes = 1
     default_resolution = [512,512]
     dense_wh = False
@@ -38,7 +37,9 @@ class COCO(data.Dataset):
 
     def __init__(self, opt, split):
         super(COCO, self).__init__()
-
+        self.opt = opt
+        self.split = split
+        
         self.img_dir0 = self.opt.data_dir
 
         self.img_dir = os.path.join(self.opt.data_dir, 'images', split)

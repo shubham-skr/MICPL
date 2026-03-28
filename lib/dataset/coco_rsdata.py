@@ -295,9 +295,20 @@ class COCO(data.Dataset):
         for kkk in range(num_objs, self.max_objs):
             bbox_tol.append([])
 
-
-        ret = {'input': inp, 'hm': hm, 'reg_mask': reg_mask, 'ind': ind, 'wh': wh, 'imgOri': imgOri, 'orig_size': np.array([orig_h, orig_w], dtype=np.float32)}
-
+        ret = {
+            'input': inp,
+            'hm': hm,
+            'reg_mask': reg_mask,
+            'ind': ind,
+            'wh': wh,
+            'imgOri': imgOri,
+            'orig_size': np.array([orig_h, orig_w], dtype=np.float32),
+            'meta': {
+                'img_id': img_id,
+                'c': c,
+                's': s
+            }
+        }
         if self.dense_wh:
             hm_a = hm.max(axis=0, keepdims=True)
             dense_wh_mask = np.concatenate([hm_a, hm_a], axis=0)

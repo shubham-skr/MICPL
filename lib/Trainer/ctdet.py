@@ -117,22 +117,4 @@ class CtdetTrainer(BaseTrainer):
             output['hm'].shape[1]
         )
 
-        # CRITICAL FIX STARTS HERE
-        orig_h, orig_w = batch['orig_size'][0].cpu().numpy()
-
-        inp_h, inp_w = batch['input'].shape[2], batch['input'].shape[3]
-
-        scale_x = orig_w / inp_w
-        scale_y = orig_h / inp_h
-
-        for cls in dets_out[0]:
-            for i in range(len(dets_out[0][cls])):
-                bbox = dets_out[0][cls][i]
-
-                bbox[0] *= scale_x
-                bbox[2] *= scale_x
-                bbox[1] *= scale_y
-                bbox[3] *= scale_y
-        # FIX ENDS HERE
-
         results[batch['meta']['img_id'].cpu().numpy()[0]] = dets_out[0]

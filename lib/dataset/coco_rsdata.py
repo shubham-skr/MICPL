@@ -304,7 +304,6 @@ class COCO(data.Dataset):
             'imgOri': imgOri,
             'orig_size': np.array([orig_h, orig_w], dtype=np.float32),
             'meta': {
-                'img_id': img_id,
                 'c': c,
                 's': s
             }

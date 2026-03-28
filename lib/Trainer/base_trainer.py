@@ -170,8 +170,9 @@ class BaseTrainer(object):
 
             dets = post_process(output, meta)
             ret = merge_outputs([dets], num_classes=1, max_per_image=opt.K)
-            results[im_id.numpy().astype(np.int32)[0]] = ret
-
+            img_id = int(im_id.squeeze().cpu().numpy())
+            results[img_id] = ret
+            print("DEBUG img_id:", img_id)
             loss = loss.mean()
             batch_time.update(time.time() - end)
 

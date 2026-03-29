@@ -160,13 +160,19 @@ class BaseTrainer(object):
                     batch[k] = batch[k].to(device=opt.device, non_blocking=True)
             output, loss, loss_stats = model_with_loss(batch)
 
-            inp_height, inp_width = batch['input'].shape[3],batch['input'].shape[4]
-            c = np.array([inp_width / 2., inp_height / 2.], dtype=np.float32)
-            s = max(inp_height, inp_width) * 1.0
+            meta_batch = batch['meta']
 
-            meta = {'c': c, 's': s,
-                    'out_height': inp_height,
-                    'out_width': inp_width}
+            c = meta_batch['c'][0].cpu().numpy()
+            s = meta_batch['s'][0].cpu().numpy()
+
+            inp_height, inp_width = batch['input'].shape[3], batch['input'].shape[4]
+
+            meta = {
+                'c': c,
+                's': s,
+                'out_height': inp_height,
+                'out_width': inp_width
+            }
 
             dets = post_process(output, meta)
             ret = merge_outputs([dets], num_classes=1, max_per_image=opt.K)

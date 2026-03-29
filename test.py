@@ -1,374 +1,195 @@
-# from __future__ import absolute_import
-# from __future__ import division
-# from __future__ import print_function
-
-# import os
-# import numpy as np
-# import time
-# import torch
-
-# from lib.utils.opts import opts
-# from lib.models.stNet import get_det_net, load_model
-# from lib.dataset.coco_rsdata import COCO  
-
-# from lib.external.nms import soft_nms
-# from lib.utils.decode import ctdet_decode
-# from lib.utils.post_process import ctdet_post_process
-
-# from progress.bar import Bar
-
-
-# # =========================
-# # MODEL FORWARD
-# # =========================
-# def process(model, image):
-#     with torch.no_grad():
-#         output = model(image)[-1]
-#         hm = output['hm'].sigmoid_()
-#         wh = output['wh']
-#         reg = output['reg']
-#         dets = ctdet_decode(hm, wh, reg=reg)
-#     return output, dets
-
-
-# # =========================
-# # POST PROCESS
-# # =========================
-# def post_process(dets, meta, num_classes=1):
-#     dets = dets.detach().cpu().numpy()
-#     dets = dets.reshape(1, -1, dets.shape[2])
-
-#     dets = ctdet_post_process(
-#         dets.copy(), [meta['c']], [meta['s']],
-#         meta['out_height'], meta['out_width'], num_classes)
-
-#     for j in range(1, num_classes + 1):
-#         dets[0][j] = np.array(dets[0][j], dtype=np.float32).reshape(-1, 5)
-
-#     return dets[0]
-
-
-# def pre_process(image):
-#     height, width = image.shape[2:4]
-
-#     c = np.array([width / 2., height / 2.], dtype=np.float32)
-#     s = max(height, width) * 1.0
-
-#     meta = {
-#         'c': c,
-#         's': s,
-#         'out_height': height,
-#         'out_width': width
-#     }
-
-#     meta_batch = batch['meta']
-
-#     c = meta_batch['c'][0].cpu().numpy()
-#     s = meta_batch['s'][0].cpu().numpy()
-
-#     inp_h, inp_w = batch['input'].shape[2:4]
-
-#     meta = {
-#         'c': c,
-#         's': s,
-#         'out_height': inp_h,
-#         'out_width': inp_w
-#     }
-#     return meta
-
-
-# def merge_outputs(detections, num_classes, max_per_image):
-#     results = {}
-
-#     for j in range(1, num_classes + 1):
-#         results[j] = np.concatenate(
-#             [detection[j] for detection in detections], axis=0
-#         ).astype(np.float32)
-
-#         soft_nms(results[j], Nt=0.5, method=2)
-
-#     scores = np.hstack(
-#         [results[j][:, 4] for j in range(1, num_classes + 1)]
-#     )
-
-#     if len(scores) > max_per_image:
-#         thresh = np.partition(scores, len(scores) - max_per_image)[-max_per_image]
-#         for j in range(1, num_classes + 1):
-#             results[j] = results[j][results[j][:, 4] >= thresh]
-
-#     return results
-
-
-# # =========================
-# # TEST LOOP
-# # =========================
-# def test(opt, split, model_path):
-
-#     os.environ['CUDA_VISIBLE_DEVICES'] = opt.gpus_str
-#     device = torch.device('cuda')
-
-#     print(f"\n🚀 Loading dataset: {split}")
-#     dataset = COCO(opt, split)
-
-#     loader = torch.utils.data.DataLoader(
-#         dataset,
-#         batch_size=1,
-#         shuffle=False,
-#         num_workers=1
-#     )
-
-#     print("🔧 Building model...")
-#     model = get_det_net(
-#         {'hm': dataset.num_classes, 'wh': 2, 'reg': 2},
-#         opt.model_name
-#     )
-
-#     model = load_model(model, model_path)
-#     model = model.to(device)
-#     model.eval()
-
-#     results = {}
-
-#     bar = Bar('Testing', max=len(loader))
-
-#     for ind, (img_id, batch) in enumerate(loader):
-
-#         image = batch['input'].to(device)
-
-#         meta = pre_process(batch['input'])
-
-#         output, dets = process(model, image)
-
-#         dets = post_process(dets, meta, dataset.num_classes)
-
-#         # NEW: RESCALE BACK TO ORIGINAL SIZE
-#         orig_h, orig_w = batch['orig_size'][0].cpu().numpy()
-
-#         inp_h, inp_w = batch['input'].shape[2:4]
-
-#         scale_x = orig_w / inp_w
-#         scale_y = orig_h / inp_h
-
-#         for j in dets:
-#             if len(dets[j]) > 0:
-#                 dets[j][:, 0] *= scale_x
-#                 dets[j][:, 2] *= scale_x
-#                 dets[j][:, 1] *= scale_y
-#                 dets[j][:, 3] *= scale_y
-
-#         results_per_img = merge_outputs([dets], dataset.num_classes, opt.K)
-
-#         results[int(img_id.numpy()[0])] = results_per_img
-
-#         bar.next()
-
-#     bar.finish()
-
-#     print("\n📊 Running COCO Evaluation...")
-
-#     stats, _ = dataset.run_eval(results, opt.save_results_dir, "results")
-
-#     print("\n========== FINAL METRICS ==========")
-#     print(f"AP     : {stats[0]:.4f}")
-#     print(f"AP50   : {stats[1]:.4f}")
-#     print(f"AP75   : {stats[2]:.4f}")
-#     print(f"Recall : {stats[8]:.4f}")
-
-#     print("\n💡 Approx:")
-#     print(f"Precision ≈ AP50 = {stats[1]:.4f}")
-#     print(f"Recall    = {stats[8]:.4f}")
-#     print("===================================")
-
-
-# # =========================
-# # MAIN
-# # =========================
-# if __name__ == '__main__':
-
-#     opt = opts().parse()
-
-#     split = 'test'
-
-#     if not os.path.exists(opt.save_results_dir):
-#         os.makedirs(opt.save_results_dir)
-
-#     model_path = opt.load_model
-
-#     print(f"\n📦 Model: {model_path}")
-
-#     test(opt, split, model_path)
-
-
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
 import os
 import numpy as np
+import time
 import torch
 
 from lib.utils.opts import opts
-from lib.models.stNet import get_det_net, load_model
-from lib.dataset.coco_rsdata import COCO  
+
+from lib.models.stNet import get_det_net, load_model, save_model
+from lib.dataset.coco_rsdata import COCO
 
 from lib.external.nms import soft_nms
+
 from lib.utils.decode import ctdet_decode
 from lib.utils.post_process import ctdet_post_process
 
+import cv2
+
 from progress.bar import Bar
 
+CONFIDENCE_thres = 0.3
+COLORS = [(255, 0, 0)]
 
-# =========================
-# MODEL FORWARD
-# =========================
-def process(model, image):
+FONT = cv2.FONT_HERSHEY_SIMPLEX
+
+def cv2_demo(frame, detections):
+    det = []
+    for i in range(detections.shape[0]):
+        if detections[i, 4] >= CONFIDENCE_thres:
+            pt = detections[i, :]
+            cv2.rectangle(frame,(int(pt[0])-4, int(pt[1])-4),(int(pt[2])+4, int(pt[3])+4),COLORS[0], 2)
+            #cv2.putText(frame, str(pt[4]), (int(pt[0]), int(pt[1])), FONT, 1, (0, 255, 0), 1) ##################
+            det.append([int(pt[0]), int(pt[1]),int(pt[2]), int(pt[3]),detections[i, 4]])
+    return frame, det
+
+def process(model, image, return_time):
     with torch.no_grad():
         output = model(image)[-1]
         hm = output['hm'].sigmoid_()
         wh = output['wh']
         reg = output['reg']
+        torch.cuda.synchronize()
+        forward_time = time.time()
         dets = ctdet_decode(hm, wh, reg=reg)
-    return output, dets
+    if return_time:
+        return output, dets, forward_time
+    else:
+        return output, dets
 
-
-# =========================
-# POST PROCESS
-# =========================
-def post_process(dets, meta, num_classes=1):
+def post_process(dets, meta, num_classes=1, scale=1):
     dets = dets.detach().cpu().numpy()
     dets = dets.reshape(1, -1, dets.shape[2])
-
     dets = ctdet_post_process(
-        dets.copy(),
-        [meta['c']],
-        [meta['s']],
-        meta['out_height'],
-        meta['out_width'],
-        num_classes
-    )
-
+        dets.copy(), [meta['c']], [meta['s']],
+        meta['out_height'], meta['out_width'], num_classes)
     for j in range(1, num_classes + 1):
         dets[0][j] = np.array(dets[0][j], dtype=np.float32).reshape(-1, 5)
-
+        dets[0][j][:, :4] /= scale
     return dets[0]
 
+# ✅ CORRECTED pre_process function
+def pre_process(image, scale=1):
+    # Grab the 4th and 5th dimensions (Height and Width)
+    height, width = image.shape[3:5] 
+    
+    new_height = int(height * scale)
+    new_width = int(width * scale)
 
-# =========================
-# MERGE OUTPUTS
-# =========================
-def merge_outputs(detections, num_classes, max_per_image):
+    inp_height, inp_width = height, width
+    c = np.array([new_width / 2., new_height / 2.], dtype=np.float32)
+    s = max(height, width) * 1.0
+
+    meta = {'c': c, 's': s,
+            'out_height': inp_height ,
+            'out_width': inp_width}
+    return meta
+
+def merge_outputs(detections, num_classes ,max_per_image):
     results = {}
-
     for j in range(1, num_classes + 1):
         results[j] = np.concatenate(
-            [detection[j] for detection in detections], axis=0
-        ).astype(np.float32)
+            [detection[j] for detection in detections], axis=0).astype(np.float32)
 
         soft_nms(results[j], Nt=0.5, method=2)
 
     scores = np.hstack(
-        [results[j][:, 4] for j in range(1, num_classes + 1)]
-    )
-
+      [results[j][:, 4] for j in range(1, num_classes + 1)])
     if len(scores) > max_per_image:
-        thresh = np.partition(scores, len(scores) - max_per_image)[-max_per_image]
+        kth = len(scores) - max_per_image
+        thresh = np.partition(scores, kth)[kth]
         for j in range(1, num_classes + 1):
-            results[j] = results[j][results[j][:, 4] >= thresh]
-
+            keep_inds = (results[j][:, 4] >= thresh)
+            results[j] = results[j][keep_inds]
     return results
 
-
-# =========================
-# TEST LOOP
-# =========================
-def test(opt, split, model_path):
+def test(opt, split, modelPath, show_flag, results_name):
 
     os.environ['CUDA_VISIBLE_DEVICES'] = opt.gpus_str
-    device = torch.device('cuda')
+    opt.device = torch.device('cuda' if opt.gpus[0] >= 0 else 'cpu')
 
-    print(f"\n🚀 Loading dataset: {split}")
+    # Logger(opt)
+    print(opt.model_name)
+
     dataset = COCO(opt, split)
 
-    loader = torch.utils.data.DataLoader(
+    data_loader = torch.utils.data.DataLoader(
         dataset,
-        batch_size=1,
-        shuffle=False,
-        num_workers=1
-    )
+        batch_size=1, shuffle=False, num_workers=1, pin_memory=True)
 
-    print("🔧 Building model...")
-    model = get_det_net(
-        {'hm': dataset.num_classes, 'wh': 2, 'reg': 2},
-        opt.model_name
-    )
+    model = get_det_net({'hm': dataset.num_classes, 'wh': 2, 'reg': 2}, opt.model_name)  # 建立模型
+    model = load_model(model, modelPath)
+    model = model.cuda()
+    
 
-    model = load_model(model, model_path)
-    model = model.to(device)
     model.eval()
 
     results = {}
 
-    bar = Bar('Testing', max=len(loader))
+    return_time = False
+    scale = 1
+    num_classes = dataset.num_classes
+    max_per_image = opt.K
 
-    for ind, (img_id, batch) in enumerate(loader):
+    # ################################################
+    # videoName1 = '/home/results/video.avi'
+    # fps = 10
+    # size = (1024, 1024)
+    # fourcc1 = cv2.VideoWriter_fourcc(*'XVID')
+    # videoWriter1 = cv2.VideoWriter(videoName1, fourcc1,fps,size)
+    # ################################################
 
-        image = batch['input'].to(device)
+    num_iters = len(data_loader)
+    bar = Bar('processing', max=num_iters)
+    for ind, (img_id,pre_processed_images) in enumerate(data_loader):
+        
+        if(ind>len(data_loader)-1):
+            break
 
-        # ✅ CRITICAL: use dataset meta (original coordinate system)
-        meta_batch = batch['meta']
-
-        c = meta_batch['c'][0].cpu().numpy()
-        s = meta_batch['s'][0].cpu().numpy()
-
-        inp_h, inp_w = batch['input'].shape[2:4]
-
-        meta = {
-            'c': c,
-            's': s,
-            'out_height': inp_h,
-            'out_width': inp_w
-        }
-
-        output, dets = process(model, image)
-
-        dets = post_process(dets, meta, dataset.num_classes)
-
-        results_per_img = merge_outputs(
-            [dets], dataset.num_classes, opt.K
+        bar.suffix = '[{0}/{1}]|Tot: {total:} |ETA: {eta:} '.format(
+            ind, num_iters,total=bar.elapsed_td, eta=bar.eta_td
         )
 
-        results[int(img_id.numpy()[0])] = results_per_img
+        
+        detection = []
+        meta = pre_process(pre_processed_images['input'], scale)
+        image = pre_processed_images['input'].cuda()
+        img = pre_processed_images['imgOri'].squeeze().numpy()
 
+       
+        output, dets = process(model, image, return_time)
+
+      
+        dets = post_process(dets, meta, num_classes)
+        detection.append(dets)
+        ret = merge_outputs(detection, num_classes, max_per_image)
+
+        if(show_flag):
+            frame, det = cv2_demo(img, dets[1])
+            #videoWriter1.write(frame) ######################################
+            # cv2.imshow('frame',frame)
+            # cv2.waitKey(5)
+
+            hm1 = output['hm'].squeeze(0).squeeze(0).cpu().detach().numpy()          
+
+            # cv2.imshow('hm', hm1)
+            # cv2.waitKey(5)
+
+        results[img_id.numpy().astype(np.int32)[0]] = ret
         bar.next()
-
     bar.finish()
+    dataset.run_eval(results, opt.save_results_dir, results_name)
 
-    print("\n📊 Running COCO Evaluation...")
-
-    stats, _ = dataset.run_eval(results, opt.save_results_dir, "results")
-
-    print("\n========== FINAL METRICS ==========")
-    print(f"AP     : {stats[0]:.4f}")
-    print(f"AP50   : {stats[1]:.4f}")
-    print(f"AP75   : {stats[2]:.4f}")
-    print(f"Recall : {stats[8]:.4f}")
-    print("===================================")
-
-
-# =========================
-# MAIN
-# =========================
 if __name__ == '__main__':
-
     opt = opts().parse()
 
     split = 'test'
 
-    if not os.path.exists(opt.save_results_dir):
-        os.makedirs(opt.save_results_dir)
+    show_flag = opt.show_results
 
-    model_path = opt.load_model
+    if (not os.path.exists(opt.save_results_dir)):
+        os.mkdir(opt.save_results_dir)
 
-    print(f"\n📦 Model: {model_path}")
+    if opt.load_model != '':
+        modelPath = opt.load_model
+    else:
+        modelPath = './weights/rsdata/MICML/model_best.pth'
 
-    test(opt, split, model_path)
+    print(modelPath)
+
+    results_name = opt.model_name+'_'+modelPath.split('/')[-1].split('.')[0]
+
+    test(opt, split, modelPath, show_flag, results_name)

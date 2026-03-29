@@ -156,7 +156,8 @@ class COCO(data.Dataset):
 
         # 🔥 KEY: ORIGINAL SPACE
         c = np.array([orig_w / 2., orig_h / 2.], dtype=np.float32)
-        s = max(orig_w, orig_h) * 1.0
+        s_val = max(orig_w, orig_h)
+        s = np.array([s_val, s_val], dtype=np.float32)
 
         output_h = new_h // self.down_ratio
         output_w = new_w // self.down_ratio

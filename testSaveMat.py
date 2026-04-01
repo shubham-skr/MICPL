@@ -10,7 +10,7 @@ import torch
 from lib.utils.opts import opts
 
 from lib.models.stNet import get_det_net, load_model, save_model
-from lib.dataset.coco import COCO
+from lib.dataset.coco_rsdata import COCO
 
 from lib.external.nms import soft_nms
 

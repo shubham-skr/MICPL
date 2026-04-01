@@ -149,9 +149,7 @@ def test(opt, split, modelPath, show_flag, results_name, saveMat=False):
         if saveMat:
             file_name = pre_processed_images['file_name']
             mat_name = file_name[0].split('/')[-1].replace('.jpg', '.mat')
-            save_mat_folder = os.path.join(save_mat_path_upper, file_name[0].split('/')[2])
-            if not os.path.exists(save_mat_folder):
-                os.mkdir(save_mat_folder)
+            save_mat_folder = save_mat_path_upper # ✅ Just dump them all in the main folder
 
         #det
         output, dets = process(model, image, return_time)

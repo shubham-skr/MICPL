@@ -12,7 +12,7 @@ if __name__ == '__main__':
     
     # 🔥 FIX 2: Point to where testSaveMat.py just dumped the .mat files
     # (Check the exact folder name generated in your Kaggle output!)
-    results_dir0 = '/kaggle/working/exp/results/MICPL_model_pre-trained_mat/' 
+    results_dir0 = '/kaggle/working/exp/results/VISO/MICPL/results/MICPL_model_pre-trained_mat/' 
 
     print(f"Reading predictions from: {results_dir0}")
     txt_name = 'results_%s_%.2f.txt'%(eval_mode_metric, conf_thresh)

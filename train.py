@@ -64,12 +64,17 @@ def main(opt):
 
     print(opt.model_name)
 
-    print("❄️ Freezing DLA-34 Spatial Backbone...")
-    # 'model' is a DLASeg instance, and its spatial backbone is 'model.base'
+    print("❄️ Freezing Spatial AND Temporal Backbones...")
+    # Freeze 2D Spatial Backbone
     for param in model.base.parameters():
         param.requires_grad = False
+        
+    # 🔥 FIX: Freeze the 3D Convolutions and ConvLSTM
+    for param in model.base3d.parameters():
+        param.requires_grad = False
 
-    optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), opt.lr)
+    # Now hand only the unfrozen parameters (BiFPN + Heads) to the optimizer
+    optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), opt.lr) 
 
     start_epoch = 0
 

@@ -65,8 +65,11 @@ def post_process(dets, meta, num_classes=1, scale=1):
         dets[0][j][:, :4] /= scale
     return dets[0]
 
+# ✅ CORRECTED pre_process function
 def pre_process(image, scale=1):
-    height, width = image.shape[2:4]
+    # Grab the 4th and 5th dimensions (Height and Width) from the 5D tensor
+    height, width = image.shape[3:5]
+    
     new_height = int(height * scale)
     new_width = int(width * scale)
 

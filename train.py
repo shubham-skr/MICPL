@@ -59,7 +59,12 @@ def main(opt):
 
     print(opt.model_name)
 
-    optimizer = torch.optim.Adam(model.parameters(), opt.lr)  
+    print("❄️ Freezing DLA-34 Spatial Backbone...")
+    # 'model' is a DLASeg instance, and its spatial backbone is 'model.base'
+    for param in model.base.parameters():
+        param.requires_grad = False
+
+    optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), opt.lr)
 
     start_epoch = 0
 

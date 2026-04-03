@@ -416,6 +416,7 @@ class DLAUp(nn.Module):
         return out
 
 
+
 class Interpolate(nn.Module):
     def __init__(self, scale, mode):
         super(Interpolate, self).__init__()
@@ -540,6 +541,66 @@ class baseNet3D(nn.Module):
         return layersnew
         
 
+class BiFPN_Layer(nn.Module):
+    """
+    Extension 3: Lightweight BiFPN for Multi-Scale Feature Aggregation
+    Uses Fast Normalized Fusion to save Kaggle VRAM.
+    """
+    def __init__(self, channels=[16, 32, 64, 128, 256]):
+        super(BiFPN_Layer, self).__init__()
+        self.channels = channels
+        self.epsilon = 1e-4
+        
+        # Project dimensions for Top-Down
+        self.td_convs = nn.ModuleList([
+            nn.Conv2d(channels[i+1], channels[i], 1) for i in range(len(channels)-1)
+        ])
+        # Project dimensions for Bottom-Up
+        self.bu_convs = nn.ModuleList([
+            nn.Conv2d(channels[i], channels[i+1], 3, stride=2, padding=1) for i in range(len(channels)-1)
+        ])
+        # Smoothing output convs
+        self.out_convs = nn.ModuleList([
+            nn.Conv2d(channels[i], channels[i], 3, padding=1) for i in range(len(channels))
+        ])
+        
+        # Learnable weights for fast normalized fusion
+        self.w1 = nn.Parameter(torch.ones(len(channels)-1, 2)) # Top-down
+        self.w2 = nn.Parameter(torch.ones(len(channels)-1, 3)) # Bottom-up
+        
+    def forward(self, features):
+        feats = [f.clone() for f in features]
+        
+        # --- Top-Down Path ---
+        w1 = torch.relu(self.w1)
+        w1 = w1 / (torch.sum(w1, dim=1, keepdim=True) + self.epsilon)
+        
+        td_feats = [feats[-1]] # Start with highest resolution (256 channels)
+        
+        for i in range(len(self.channels)-2, -1, -1):
+            td_up = F.interpolate(td_feats[-1], size=feats[i].shape[2:], mode='nearest')
+            td_up = self.td_convs[i](td_up)
+            fused = w1[i, 0] * feats[i] + w1[i, 1] * td_up
+            td_feats.append(self.out_convs[i](fused))
+            
+        td_feats = td_feats[::-1] # Reverse list back to normal order
+        
+        # --- Bottom-Up Path ---
+        w2 = torch.relu(self.w2)
+        w2 = w2 / (torch.sum(w2, dim=1, keepdim=True) + self.epsilon)
+        
+        out_feats = [td_feats[0]]
+        
+        for i in range(len(self.channels)-1):
+            bu_down = self.bu_convs[i](out_feats[-1])
+            # Handle 1px rounding errors from max-pooling
+            if bu_down.shape[2:] != feats[i+1].shape[2:]:
+                bu_down = F.interpolate(bu_down, size=feats[i+1].shape[2:], mode='nearest')
+                
+            fused = w2[i, 0] * feats[i+1] + w2[i, 1] * td_feats[i+1] + w2[i, 2] * bu_down
+            out_feats.append(self.out_convs[i+1](fused))
+            
+        return out_feats
 
 
 class DLASeg(nn.Module):
@@ -549,6 +610,8 @@ class DLASeg(nn.Module):
         self.first_level = 0  
         self.last_level = 3 
         self.base = dla34(pretrained=True)
+
+        self.bifpn = BiFPN_Layer(channels=[16, 32, 64, 128, 256])
         
         channels = [16, 32, 64,128,256]  
         scales = [2 ** i for i in range(len(channels[self.first_level:]))]
@@ -598,11 +661,11 @@ class DLASeg(nn.Module):
 
     def forward(self, x): 
                 
-            
-  
-        
         xx = x[:, :, 0, :, :]  
         layersspatial = self.base(xx) 
+
+        layersspatial = self.bifpn(layersspatial)
+        
         layers1 = self.dla_up(layersspatial)   
         layerstemporal = self.base3d(x)   
         layers = []

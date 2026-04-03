@@ -15,6 +15,11 @@ from lib.dataset.coco_rsdata import COCO
 from lib.Trainer.ctdet import CtdetTrainer
 
 import numpy as np
+import cv2 # 🔥 ADD THIS
+
+# 🔥 KILL THE OPENCV THREAD LEAK
+cv2.setNumThreads(0)
+cv2.ocl.setUseOpenCL(False)
 
 
 def main(opt):
@@ -37,7 +42,7 @@ def main(opt):
         batch_size=1,
         shuffle=False,
         num_workers=opt.num_workers,
-        pin_memory=True
+        pin_memory=False
     )
 
     DataTrain = COCO(opt, 'train')
@@ -49,7 +54,7 @@ def main(opt):
         batch_size=opt.batch_size,
         shuffle=True,
         num_workers=opt.num_workers,
-        pin_memory=True,
+        pin_memory=False,
         drop_last=True
     )
 

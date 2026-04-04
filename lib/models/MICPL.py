@@ -567,6 +567,13 @@ class BiFPN_Layer(nn.Module):
         # Learnable weights for fast normalized fusion
         self.w1 = nn.Parameter(torch.ones(len(channels)-1, 2)) # Top-down
         self.w2 = nn.Parameter(torch.ones(len(channels)-1, 3)) # Bottom-up
+
+        # 🔥 THE FIX: Zero-Initialize the output convolutions
+        # This ensures BiFPN outputs 0 at the start of training
+        for m in self.out_convs:
+            nn.init.constant_(m.weight, 0)
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0)
         
     def forward(self, features):
         feats = [f.clone() for f in features]
@@ -663,9 +670,12 @@ class DLASeg(nn.Module):
                 
         xx = x[:, :, 0, :, :]  
         layersspatial = self.base(xx) 
-
-        layersspatial = self.bifpn(layersspatial)
         
+        # THE FIX: Residual Addition
+        # layersspatial + 0 = Baseline. It will safely learn from here!
+        bifpn_refinements = self.bifpn(layersspatial)
+        layersspatial = [orig + new for orig, new in zip(layersspatial, bifpn_refinements)]
+
         layers1 = self.dla_up(layersspatial)   
         layerstemporal = self.base3d(x)   
         layers = []

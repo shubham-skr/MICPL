@@ -541,73 +541,101 @@ class baseNet3D(nn.Module):
         return layersnew
         
 
+class SeparableConvBlock(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super().__init__()
+        self.depthwise = nn.Conv2d(
+            in_channels, in_channels, kernel_size=3,
+            padding=1, groups=in_channels, bias=False
+        )
+        self.pointwise = nn.Conv2d(in_channels, out_channels, kernel_size=1)
+        self.bn = nn.BatchNorm2d(out_channels)
+        self.act = nn.SiLU(inplace=True)  # better than ReLU
+
+    def forward(self, x):
+        x = self.depthwise(x)
+        x = self.pointwise(x)
+        x = self.bn(x)
+        return self.act(x)
+
+
 class BiFPN_Layer(nn.Module):
-    """
-    Extension 3: Lightweight BiFPN for Multi-Scale Feature Aggregation
-    Uses Fast Normalized Fusion to save Kaggle VRAM.
-    """
     def __init__(self, channels=[16, 32, 64, 128, 256]):
-        super(BiFPN_Layer, self).__init__()
+        super().__init__()
         self.channels = channels
         self.epsilon = 1e-4
-        
-        # Project dimensions for Top-Down
-        self.td_convs = nn.ModuleList([
-            nn.Conv2d(channels[i+1], channels[i], 1) for i in range(len(channels)-1)
-        ])
-        # Project dimensions for Bottom-Up
-        self.bu_convs = nn.ModuleList([
-            nn.Conv2d(channels[i], channels[i+1], 3, stride=2, padding=1) for i in range(len(channels)-1)
-        ])
-        # Smoothing output convs
-        self.out_convs = nn.ModuleList([
-            nn.Conv2d(channels[i], channels[i], 3, padding=1) for i in range(len(channels))
-        ])
-        
-        # Learnable weights for fast normalized fusion
-        self.w1 = nn.Parameter(torch.ones(len(channels)-1, 2)) # Top-down
-        self.w2 = nn.Parameter(torch.ones(len(channels)-1, 3)) # Bottom-up
+        N = len(channels)
 
-        # 🔥 THE FIX: Zero-Initialize the output convolutions
-        # This ensures BiFPN outputs 0 at the start of training
-        for m in self.out_convs:
-            nn.init.constant_(m.weight, 0)
-            if m.bias is not None:
+        # Channel alignment
+        self.td_convs = nn.ModuleList([
+            nn.Conv2d(channels[i+1], channels[i], 1)
+            for i in range(N-1)
+        ])
+
+        self.bu_convs = nn.ModuleList([
+            nn.Conv2d(channels[i], channels[i+1], 3, stride=2, padding=1)
+            for i in range(N-1)
+        ])
+
+        # Separate convs (VERY IMPORTANT)
+        self.td_out = nn.ModuleList([
+            SeparableConvBlock(channels[i], channels[i])
+            for i in range(N)
+        ])
+
+        self.bu_out = nn.ModuleList([
+            SeparableConvBlock(channels[i], channels[i])
+            for i in range(N)
+        ])
+
+        # Learnable weights
+        self.w1 = nn.Parameter(torch.ones(N-1, 2))
+        self.w2 = nn.Parameter(torch.ones(N-1, 3))
+
+        self._init_weights()
+
+    def _init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            if isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
-        
+
     def forward(self, features):
-        feats = [f.clone() for f in features]
-        
-        # --- Top-Down Path ---
-        w1 = torch.relu(self.w1)
-        w1 = w1 / (torch.sum(w1, dim=1, keepdim=True) + self.epsilon)
-        
-        td_feats = [feats[-1]] # Start with highest resolution (256 channels)
-        
-        for i in range(len(self.channels)-2, -1, -1):
-            td_up = F.interpolate(td_feats[-1], size=feats[i].shape[2:], mode='nearest')
-            td_up = self.td_convs[i](td_up)
-            fused = w1[i, 0] * feats[i] + w1[i, 1] * td_up
-            td_feats.append(self.out_convs[i](fused))
-            
-        td_feats = td_feats[::-1] # Reverse list back to normal order
-        
-        # --- Bottom-Up Path ---
-        w2 = torch.relu(self.w2)
-        w2 = w2 / (torch.sum(w2, dim=1, keepdim=True) + self.epsilon)
-        
-        out_feats = [td_feats[0]]
-        
-        for i in range(len(self.channels)-1):
-            bu_down = self.bu_convs[i](out_feats[-1])
-            # Handle 1px rounding errors from max-pooling
-            if bu_down.shape[2:] != feats[i+1].shape[2:]:
-                bu_down = F.interpolate(bu_down, size=feats[i+1].shape[2:], mode='nearest')
-                
-            fused = w2[i, 0] * feats[i+1] + w2[i, 1] * td_feats[i+1] + w2[i, 2] * bu_down
-            out_feats.append(self.out_convs[i+1](fused))
-            
-        return out_feats
+        feats = list(features)
+        N = len(feats)  # 5
+
+        w1 = F.relu(self.w1)
+        w1 = w1 / (w1.sum(dim=1, keepdim=True) + self.epsilon)
+
+        # --- Top-Down ---
+        td = [None] * N
+        td[N-1] = self.td_out[N-1](feats[N-1])  # apply conv to anchor too
+
+        for i in range(N-2, -1, -1):
+            up = F.interpolate(td[i+1], size=feats[i].shape[2:],
+                            mode='bilinear', align_corners=False)
+            up = self.td_convs[i](up)
+            fused = w1[i, 0] * feats[i] + w1[i, 1] * up
+            td[i] = self.td_out[i](fused)
+
+        # --- Bottom-Up ---
+        w2 = F.relu(self.w2)
+        w2 = w2 / (w2.sum(dim=1, keepdim=True) + self.epsilon)
+
+        out = [None] * N
+        out[0] = self.bu_out[0](td[0])  # apply conv to anchor too
+
+        for i in range(N-1):
+            down = self.bu_convs[i](out[i])
+            if down.shape[2:] != feats[i+1].shape[2:]:
+                down = F.interpolate(down, size=feats[i+1].shape[2:],
+                                    mode='bilinear', align_corners=False)
+            fused = w2[i, 0] * feats[i+1] + w2[i, 1] * td[i+1] + w2[i, 2] * down
+            out[i+1] = self.bu_out[i+1](fused)
+
+        return out
 
 
 class DLASeg(nn.Module):
@@ -616,7 +644,7 @@ class DLASeg(nn.Module):
         super(DLASeg, self).__init__()
         self.first_level = 0  
         self.last_level = 3 
-        self.base = dla34(pretrained=True)
+        self.base = dla34(pretrained=False)
 
         self.bifpn = BiFPN_Layer(channels=[16, 32, 64, 128, 256])
         
@@ -667,31 +695,30 @@ class DLASeg(nn.Module):
             self.__setattr__(head, fc)
 
     def forward(self, x): 
-                
         xx = x[:, :, 0, :, :]  
-        layersspatial = self.base(xx) 
-        
-        # THE FIX: Residual Addition
-        # layersspatial + 0 = Baseline. It will safely learn from here!
+        layersspatial = self.base(xx)
+        assert len(layersspatial) == 5  # keep until confirmed working
+
         bifpn_refinements = self.bifpn(layersspatial)
         layersspatial = [orig + new for orig, new in zip(layersspatial, bifpn_refinements)]
 
-        layers1 = self.dla_up(layersspatial)   
+        layers1 = self.dla_up(layersspatial)
         layerstemporal = self.base3d(x)   
-        layers = []
 
+        layers = []
         for ii in range(3):
-            layers.append(layers1[ii]  + layerstemporal[ii]) 
-        
+            layers.append(layers1[ii] + layerstemporal[ii]) 
+
         y = []
         for i in range(self.last_level - self.first_level):
             y.append(layers[i].clone())
+
         self.ida_up(y, 0, len(y))
 
         z = {}
         for head in self.heads:
             z[head] = self.__getattr__(head)(y[-1])
-            
+
         return [z]
     
     

@@ -498,8 +498,8 @@ class COCO(data.Dataset):
                 imName = imf + imIndexNew + imtype
                 im = cv2.imread(self.img_dir + imName)
 
-            if im.shape[0] != self.resolution[0] or im.shape[1] != self.resolution[1]:
-                im = cv2.resize(im, (self.resolution[1], self.resolution[0]))
+            # if im.shape[0] != self.resolution[0] or im.shape[1] != self.resolution[1]:
+            #     im = cv2.resize(im, (self.resolution[1], self.resolution[0]))
 
             if ii == 0:
                 imgOri = im
@@ -513,10 +513,10 @@ class COCO(data.Dataset):
         # Images are resized to self.resolution (e.g. 512x512) on load
         # affine_transform maps from self.resolution space → heatmap space
         # So we must scale annotations from original → self.resolution first
-        orig_w = current_img_info['width']
-        orig_h = current_img_info['height']
-        scale_w = self.resolution[1] / orig_w
-        scale_h = self.resolution[0] / orig_h
+        # orig_w = current_img_info['width']
+        # orig_h = current_img_info['height']
+        # scale_w = self.resolution[1] / orig_w
+        # scale_h = self.resolution[0] / orig_h
 
         bbox_tol = []
         cls_id_tol = []
@@ -526,10 +526,10 @@ class COCO(data.Dataset):
             bbox = self._coco_box_to_bbox(ann['bbox'])
 
             # Scale from original image space → loaded image space (self.resolution)
-            bbox[0] *= scale_w
-            bbox[1] *= scale_h
-            bbox[2] *= scale_w
-            bbox[3] *= scale_h
+            # bbox[0] *= scale_w
+            # bbox[1] *= scale_h
+            # bbox[2] *= scale_w
+            # bbox[3] *= scale_h
 
             bbox_tol.append(bbox)
             cls_id_tol.append(self.cat_ids[ann['category_id']])

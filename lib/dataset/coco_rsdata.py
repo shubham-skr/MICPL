@@ -871,9 +871,7 @@ class COCO(data.Dataset):
                 reg_mask[k] = 1
                 cat_spec_wh[k, cls_id * 2: cls_id * 2 + 2] = wh[k]
                 cat_spec_mask[k, cls_id * 2: cls_id * 2 + 2] = 1
-                print("bbox:", bbox)
-                print("center:", ct)
-                print("image shape:", inp.shape)
+            
                 if self.dense_wh:
                     draw_dense_reg(dense_wh, hm.max(axis=0), ct_int, wh[k], radius)
                 gt_det.append([ct[0] - w / 2, ct[1] - h / 2,

@@ -541,101 +541,101 @@ class baseNet3D(nn.Module):
         return layersnew
         
 
-# class SeparableConvBlock(nn.Module):
-#     def __init__(self, in_channels, out_channels):
-#         super().__init__()
-#         self.depthwise = nn.Conv2d(
-#             in_channels, in_channels, kernel_size=3,
-#             padding=1, groups=in_channels, bias=False
-#         )
-#         self.pointwise = nn.Conv2d(in_channels, out_channels, kernel_size=1)
-#         self.bn = nn.BatchNorm2d(out_channels)
-#         self.act = nn.SiLU(inplace=True)  # better than ReLU
+class SeparableConvBlock(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super().__init__()
+        self.depthwise = nn.Conv2d(
+            in_channels, in_channels, kernel_size=3,
+            padding=1, groups=in_channels, bias=False
+        )
+        self.pointwise = nn.Conv2d(in_channels, out_channels, kernel_size=1)
+        self.bn = nn.BatchNorm2d(out_channels)
+        self.act = nn.SiLU(inplace=True)  # better than ReLU
 
-#     def forward(self, x):
-#         x = self.depthwise(x)
-#         x = self.pointwise(x)
-#         x = self.bn(x)
-#         return self.act(x)
+    def forward(self, x):
+        x = self.depthwise(x)
+        x = self.pointwise(x)
+        x = self.bn(x)
+        return self.act(x)
 
 
-# class BiFPN_Layer(nn.Module):
-#     def __init__(self, channels=[16, 32, 64, 128, 256]):
-#         super().__init__()
-#         self.channels = channels
-#         self.epsilon = 1e-4
-#         N = len(channels)
+class BiFPN_Layer(nn.Module):
+    def __init__(self, channels=[16, 32, 64, 128, 256]):
+        super().__init__()
+        self.channels = channels
+        self.epsilon = 1e-4
+        N = len(channels)
 
-#         # Channel alignment
-#         self.td_convs = nn.ModuleList([
-#             nn.Conv2d(channels[i+1], channels[i], 1)
-#             for i in range(N-1)
-#         ])
+        # Channel alignment
+        self.td_convs = nn.ModuleList([
+            nn.Conv2d(channels[i+1], channels[i], 1)
+            for i in range(N-1)
+        ])
 
-#         self.bu_convs = nn.ModuleList([
-#             nn.Conv2d(channels[i], channels[i+1], 3, stride=2, padding=1)
-#             for i in range(N-1)
-#         ])
+        self.bu_convs = nn.ModuleList([
+            nn.Conv2d(channels[i], channels[i+1], 3, stride=2, padding=1)
+            for i in range(N-1)
+        ])
 
-#         # Separate convs (VERY IMPORTANT)
-#         self.td_out = nn.ModuleList([
-#             SeparableConvBlock(channels[i], channels[i])
-#             for i in range(N)
-#         ])
+        # Separate convs (VERY IMPORTANT)
+        self.td_out = nn.ModuleList([
+            SeparableConvBlock(channels[i], channels[i])
+            for i in range(N)
+        ])
 
-#         self.bu_out = nn.ModuleList([
-#             SeparableConvBlock(channels[i], channels[i])
-#             for i in range(N)
-#         ])
+        self.bu_out = nn.ModuleList([
+            SeparableConvBlock(channels[i], channels[i])
+            for i in range(N)
+        ])
 
-#         # Learnable weights
-#         self.w1 = nn.Parameter(torch.ones(N-1, 2))
-#         self.w2 = nn.Parameter(torch.ones(N-1, 3))
+        # Learnable weights
+        self.w1 = nn.Parameter(torch.ones(N-1, 2))
+        self.w2 = nn.Parameter(torch.ones(N-1, 3))
 
-#         self._init_weights()
+        self._init_weights()
 
-#     def _init_weights(self):
-#         for m in self.modules():
-#             if isinstance(m, nn.Conv2d):
-#                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-#             if isinstance(m, nn.BatchNorm2d):
-#                 nn.init.constant_(m.weight, 1)
-#                 nn.init.constant_(m.bias, 0)
+    def _init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            if isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
 
-#     def forward(self, features):
-#         feats = list(features)
-#         N = len(feats)  # 5
+    def forward(self, features):
+        feats = list(features)
+        N = len(feats)  # 5
 
-#         w1 = F.relu(self.w1)
-#         w1 = w1 / (w1.sum(dim=1, keepdim=True) + self.epsilon)
+        w1 = F.relu(self.w1)
+        w1 = w1 / (w1.sum(dim=1, keepdim=True) + self.epsilon)
 
-#         # --- Top-Down ---
-#         td = [None] * N
-#         td[N-1] = self.td_out[N-1](feats[N-1])  # apply conv to anchor too
+        # --- Top-Down ---
+        td = [None] * N
+        td[N-1] = self.td_out[N-1](feats[N-1])  # apply conv to anchor too
 
-#         for i in range(N-2, -1, -1):
-#             up = F.interpolate(td[i+1], size=feats[i].shape[2:],
-#                             mode='bilinear', align_corners=False)
-#             up = self.td_convs[i](up)
-#             fused = w1[i, 0] * feats[i] + w1[i, 1] * up
-#             td[i] = self.td_out[i](fused)
+        for i in range(N-2, -1, -1):
+            up = F.interpolate(td[i+1], size=feats[i].shape[2:],
+                            mode='bilinear', align_corners=False)
+            up = self.td_convs[i](up)
+            fused = w1[i, 0] * feats[i] + w1[i, 1] * up
+            td[i] = self.td_out[i](fused)
 
-#         # --- Bottom-Up ---
-#         w2 = F.relu(self.w2)
-#         w2 = w2 / (w2.sum(dim=1, keepdim=True) + self.epsilon)
+        # --- Bottom-Up ---
+        w2 = F.relu(self.w2)
+        w2 = w2 / (w2.sum(dim=1, keepdim=True) + self.epsilon)
 
-#         out = [None] * N
-#         out[0] = self.bu_out[0](td[0])  # apply conv to anchor too
+        out = [None] * N
+        out[0] = self.bu_out[0](td[0])  # apply conv to anchor too
 
-#         for i in range(N-1):
-#             down = self.bu_convs[i](out[i])
-#             if down.shape[2:] != feats[i+1].shape[2:]:
-#                 down = F.interpolate(down, size=feats[i+1].shape[2:],
-#                                     mode='bilinear', align_corners=False)
-#             fused = w2[i, 0] * feats[i+1] + w2[i, 1] * td[i+1] + w2[i, 2] * down
-#             out[i+1] = self.bu_out[i+1](fused)
+        for i in range(N-1):
+            down = self.bu_convs[i](out[i])
+            if down.shape[2:] != feats[i+1].shape[2:]:
+                down = F.interpolate(down, size=feats[i+1].shape[2:],
+                                    mode='bilinear', align_corners=False)
+            fused = w2[i, 0] * feats[i+1] + w2[i, 1] * td[i+1] + w2[i, 2] * down
+            out[i+1] = self.bu_out[i+1](fused)
 
-#         return out
+        return out
 
 
 class DLASeg(nn.Module):
@@ -646,7 +646,7 @@ class DLASeg(nn.Module):
         self.last_level = 3 
         self.base = dla34(pretrained=True)
 
-        # self.bifpn = BiFPN_Layer(channels=[16, 32, 64, 128, 256])
+        self.bifpn = BiFPN_Layer(channels=[16, 32, 64, 128, 256])
         
         channels = [16, 32, 64,128,256]  
         scales = [2 ** i for i in range(len(channels[self.first_level:]))]
@@ -697,10 +697,10 @@ class DLASeg(nn.Module):
     def forward(self, x): 
         xx = x[:, :, 0, :, :]  
         layersspatial = self.base(xx)
-        # assert len(layersspatial) == 5  # keep until confirmed working
+        assert len(layersspatial) == 5  # keep until confirmed working
 
-        # bifpn_refinements = self.bifpn(layersspatial)
-        # layersspatial = [orig + new for orig, new in zip(layersspatial, bifpn_refinements)]
+        bifpn_refinements = self.bifpn(layersspatial)
+        layersspatial = [orig + new for orig, new in zip(layersspatial, bifpn_refinements)]
 
         layers1 = self.dla_up(layersspatial)
         layerstemporal = self.base3d(x)   

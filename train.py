@@ -60,6 +60,8 @@ def main(opt):
 
     print('Creating model...')
     head = {'hm': DataTrain.num_classes, 'wh': 2, 'reg': 2}
+    logger = Logger(opt)
+
     # ===== Create model =====
     model = get_det_net(head, opt.model_name)
 

@@ -12,7 +12,7 @@ if __name__ == '__main__':
     TARGET_VIDEOS = [3, 5, 2, 8, 10, 6, 9]
     
     ANN_PATH = '/kaggle/input/datasets/shub7ham/viso-sod/VISO/Detection_coco_format/coco/car/Annotations/test2017/'
-    results_dir0 = '/kaggle/working/exp/results/VISO/MICPL/results/MICPL_modelss_model_last_mat/' 
+    results_dir0 = '/kaggle/working/exp/results/VISO/MICPL/results/MICPL_model_pre-trained_mat/' 
 
     print(f"Reading predictions from: {results_dir0}")
     

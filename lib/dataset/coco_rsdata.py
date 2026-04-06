@@ -40,11 +40,9 @@
 #         super(COCO, self).__init__()
 
 #         self.img_dir0 = self.opt.data_dir
-
 #         self.img_dir = self.opt.data_dir
 
 #         if opt.test_large_size:
-
 #             if split == 'train':
 #                 self.resolution = [512, 512]
 #                 self.annot_path = os.path.join(
@@ -65,11 +63,9 @@
 #         self.max_objs = opt.K
 #         self.seqLen = opt.seqLen
 
-#         self.class_name = [
-#             '__background__', 'car']
-#         self._valid_ids = [
-#             1, 2]
-#         self.cat_ids = {v: i for i, v in enumerate(self._valid_ids)}  # 生成对应的category dict
+#         self.class_name = ['__background__', 'car']
+#         self._valid_ids = [1, 2]
+#         self.cat_ids = {v: i for i, v in enumerate(self._valid_ids)}
 
 #         self.split = split
 #         self.opt = opt
@@ -81,7 +77,18 @@
 
 #         print('Loaded {} {} samples'.format(split, self.num_samples))
 
-#         if(split=='train'):
+#         # ✅ FIX: Build frame lookup table at init time (O(1) per lookup vs O(N) per getitem)
+#         # Maps (video_id, frame_number) -> coco_image_id
+#         # This is the correct way to check temporal boundaries across videos
+#         self.frame_lookup = {}
+#         for img_id in self.images:
+#             info = self.coco.loadImgs(ids=[img_id])[0]
+#             fname = info['file_name']
+#             frame_num = int(fname.split('.')[0].split('/')[-1])
+#             vid_id = info.get('video_id', -1)
+#             self.frame_lookup[(vid_id, frame_num)] = img_id
+
+#         if split == 'train':
 #             self.aug = Augmentation()
 #         else:
 #             self.aug = None
@@ -89,9 +96,7 @@
 #     def _to_float(self, x):
 #         return float("{:.2f}".format(x))
 
-    
 #     def convert_eval_format(self, all_bboxes):
-#         # import pdb; pdb.set_trace()
 #         detections = []
 #         for image_id in all_bboxes:
 #             for cls_ind in all_bboxes[image_id]:
@@ -101,7 +106,6 @@
 #                     bbox[3] -= bbox[1]
 #                     score = bbox[4]
 #                     bbox_out = list(map(self._to_float, bbox[0:4]))
-
 #                     detection = {
 #                         "image_id": int(image_id),
 #                         "category_id": int(category_id),
@@ -119,9 +123,8 @@
 
 #     def save_results(self, results, save_dir, time_str):
 #         json.dump(self.convert_eval_format(results),
-#                   open('{}/results_{}.json'.format(save_dir,time_str), 'w'))
-
-#         print('{}/results_{}.json'.format(save_dir,time_str))
+#                   open('{}/results_{}.json'.format(save_dir, time_str), 'w'))
+#         print('{}/results_{}.json'.format(save_dir, time_str))
 
 #     def run_eval(self, results, save_dir, time_str):
 #         self.save_results(results, save_dir, time_str)
@@ -132,18 +135,16 @@
 #         coco_eval.summarize()
 #         stats = coco_eval.stats
 #         precisions = coco_eval.eval['precision']
-
 #         return stats, precisions
 
 #     def run_eval_just(self, save_dir, time_str, iouth):
 #         coco_dets = self.coco.loadRes('{}/{}'.format(save_dir, time_str))
-#         coco_eval = COCOeval(self.coco, coco_dets, "bbox", iouth = iouth)
+#         coco_eval = COCOeval(self.coco, coco_dets, "bbox", iouth=iouth)
 #         coco_eval.evaluate()
 #         coco_eval.accumulate()
 #         coco_eval.summarize()
 #         stats_5 = coco_eval.stats
 #         precisions = coco_eval.eval['precision']
-
 #         return stats_5, precisions
 
 #     def _coco_box_to_bbox(self, box):
@@ -161,10 +162,8 @@
 #         img_id = self.images[index]
 #         current_img_info = self.coco.loadImgs(ids=[img_id])[0]
 #         file_name = current_img_info['file_name']
-        
-#         # 🔥 Temporal Safety: Get current video ID
 #         current_video_id = current_img_info.get('video_id', -1)
-        
+
 #         ann_ids = self.coco.getAnnIds(imgIds=[img_id])
 #         anns = self.coco.loadAnns(ids=ann_ids)
 #         num_objs = min(len(anns), self.max_objs)
@@ -172,40 +171,45 @@
 #         seq_num = self.seqLen
 #         imIdex = int(file_name.split('.')[0].split('/')[-1])
 #         imf = file_name.split(file_name.split('/')[-1])[0]
-#         imtype = '.'+file_name.split('.')[-1]
+#         imtype = '.' + file_name.split('.')[-1]
+
 #         img = np.zeros([self.resolution[0], self.resolution[1], 3, seq_num])
-        
-#         # 🔥 Box Scaling Math: Calculate ratio from original 1025x1025 to Target Resolution
+
+#         for ii in range(seq_num):
+#             target_frame = max(imIdex - ii, 1)
+
+#             # ✅ Correct temporal boundary check using lookup table
+#             if (current_video_id, target_frame) not in self.frame_lookup:
+#                 target_frame = imIdex
+
+#             imIndexNew = '%06d' % target_frame
+#             imName = imf + imIndexNew + imtype
+#             im = cv2.imread(self.img_dir + imName)
+
+#             if im is None:
+#                 imIndexNew = '%06d' % imIdex
+#                 imName = imf + imIndexNew + imtype
+#                 im = cv2.imread(self.img_dir + imName)
+
+#             if im.shape[0] != self.resolution[0] or im.shape[1] != self.resolution[1]:
+#                 im = cv2.resize(im, (self.resolution[1], self.resolution[0]))
+
+#             if ii == 0:
+#                 imgOri = im
+
+#             inp_i = (im.astype(np.float32) / 255.)
+#             inp_i = (inp_i - self.mean) / self.std
+#             img[:, :, :, ii] = inp_i
+
+#         # ✅ Compute scale ONCE here, outside the per-object loop
+#         # Annotations are in original image space (e.g. 1024x1024)
+#         # Images are resized to self.resolution (e.g. 512x512) on load
+#         # affine_transform maps from self.resolution space → heatmap space
+#         # So we must scale annotations from original → self.resolution first
 #         orig_w = current_img_info['width']
 #         orig_h = current_img_info['height']
 #         scale_w = self.resolution[1] / orig_w
 #         scale_h = self.resolution[0] / orig_h
-
-#         for ii in range(seq_num):
-#             target_id = max(imIdex - ii, 1)
-            
-#             # 🔥 Temporal Safety: Ensure we don't cross video boundaries
-#             try:
-#                 prev_img_info = self.coco.loadImgs(ids=[target_id])[0]
-#                 if prev_img_info.get('video_id', -1) != current_video_id:
-#                     target_id = imIdex # Fallback to current frame
-#             except:
-#                 target_id = imIdex
-                
-#             imIndexNew = '%06d' % target_id
-#             imName = imf+imIndexNew+imtype
-#             im = cv2.imread(self.img_dir + imName)
-            
-#             # 🔥 Resolution Fix: Dynamically resize the loaded image to fit the array
-#             if im.shape[0] != self.resolution[0] or im.shape[1] != self.resolution[1]:
-#                 im = cv2.resize(im, (self.resolution[1], self.resolution[0]))
-                
-#             if(ii==0):
-#                 imgOri = im
-#             #normalize
-#             inp_i = (im.astype(np.float32) / 255.)
-#             inp_i = (inp_i - self.mean) / self.std
-#             img[:,:,:,ii] = inp_i
 
 #         bbox_tol = []
 #         cls_id_tol = []
@@ -213,17 +217,17 @@
 #         for k in range(num_objs):
 #             ann = anns[k]
 #             bbox = self._coco_box_to_bbox(ann['bbox'])
-            
-#             # 🔥 Box Scaling Math: Adjust ground truth box coordinates
+
+#             # Scale from original image space → loaded image space (self.resolution)
 #             bbox[0] *= scale_w
 #             bbox[1] *= scale_h
 #             bbox[2] *= scale_w
 #             bbox[3] *= scale_h
-            
+
 #             bbox_tol.append(bbox)
 #             cls_id_tol.append(self.cat_ids[ann['category_id']])
 
-#         if self.aug is not None and num_objs>0:
+#         if self.aug is not None and num_objs > 0:
 #             bbox_tol = np.array(bbox_tol)
 #             cls_id_tol = np.array(cls_id_tol)
 #             img, bbox_tol, cls_id_tol = self.aug(img, bbox_tol, cls_id_tol)
@@ -231,12 +235,10 @@
 #             cls_id_tol = cls_id_tol.tolist()
 #             num_objs = len(bbox_tol)
 
-#         #transpose
 #         inp = img.transpose(2, 3, 0, 1).astype(np.float32)
 
 #         height, width = img.shape[0], img.shape[1]
 #         c = np.array([img.shape[1] / 2., img.shape[0] / 2.], dtype=np.float32)
-
 #         s = max(img.shape[0], img.shape[1]) * 1.0
 
 #         output_h = height // self.down_ratio
@@ -259,6 +261,9 @@
 #         for k in range(num_objs):
 #             bbox = bbox_tol[k]
 #             cls_id = cls_id_tol[k]
+
+#             # bbox is already in self.resolution space (scaled above)
+#             # affine_transform maps self.resolution → heatmap space
 #             bbox[:2] = affine_transform(bbox[:2], trans_output)
 #             bbox[2:] = affine_transform(bbox[2:], trans_output)
 
@@ -268,9 +273,9 @@
 #             if h > 0 and w > 0:
 #                 radius = gaussian_radius((math.ceil(h), math.ceil(w)))
 #                 radius = max(0, int(radius))
-#                 radius = radius
 #                 ct = np.array(
-#                     [(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2], dtype=np.float32)
+#                     [(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2],
+#                     dtype=np.float32)
 #                 ct[0] = np.clip(ct[0], 0, output_w - 1)
 #                 ct[1] = np.clip(ct[1], 0, output_h - 1)
 #                 ct_int = ct.astype(np.int32)
@@ -284,10 +289,10 @@
 #                 if self.dense_wh:
 #                     draw_dense_reg(dense_wh, hm.max(axis=0), ct_int, wh[k], radius)
 #                 gt_det.append([ct[0] - w / 2, ct[1] - h / 2,
-#                                ct[0] + w / 2, ct[1] + h / 2, 1, cls_id])
+#                             ct[0] + w / 2, ct[1] + h / 2, 1, cls_id])
+
 #         for kkk in range(num_objs, self.max_objs):
 #             bbox_tol.append([])
-
 
 #         ret = {'input': inp, 'hm': hm, 'reg_mask': reg_mask, 'ind': ind, 'wh': wh, 'imgOri': imgOri}
 
@@ -480,12 +485,11 @@ class COCO(data.Dataset):
         imf = file_name.split(file_name.split('/')[-1])[0]
         imtype = '.' + file_name.split('.')[-1]
 
-        img = np.zeros([self.resolution[0], self.resolution[1], 3, seq_num])
+        img = None  # initialize
 
         for ii in range(seq_num):
             target_frame = max(imIdex - ii, 1)
 
-            # ✅ Correct temporal boundary check using lookup table
             if (current_video_id, target_frame) not in self.frame_lookup:
                 target_frame = imIdex
 
@@ -498,14 +502,15 @@ class COCO(data.Dataset):
                 imName = imf + imIndexNew + imtype
                 im = cv2.imread(self.img_dir + imName)
 
-            # if im.shape[0] != self.resolution[0] or im.shape[1] != self.resolution[1]:
-            #     im = cv2.resize(im, (self.resolution[1], self.resolution[0]))
-
+            # 🔥 KEY FIX: initialize buffer dynamically
             if ii == 0:
+                H, W = im.shape[0], im.shape[1]
+                img = np.zeros([H, W, 3, seq_num], dtype=np.float32)
                 imgOri = im
 
             inp_i = (im.astype(np.float32) / 255.)
             inp_i = (inp_i - self.mean) / self.std
+
             img[:, :, :, ii] = inp_i
 
         # ✅ Compute scale ONCE here, outside the per-object loop

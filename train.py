@@ -104,15 +104,15 @@ def main(opt):
             
         print(f'EPOCH: {epoch}/{opt.num_epochs}')
         
-        log_dict_train, _ = trainer.train(epoch, train_loader)
+        # log_dict_train, _ = trainer.train(epoch, train_loader)
 
-        logger.write('epoch: {} |'.format(epoch))
+        # logger.write('epoch: {} |'.format(epoch))
 
-        save_model(os.path.join(opt.save_dir, 'model_last.pth'),
-                   epoch, model, optimizer)
+        # save_model(os.path.join(opt.save_dir, 'model_last.pth'),
+        #            epoch, model, optimizer)
 
-        for k, v in log_dict_train.items():
-            logger.write('{} {:8f} | '.format(k, v))
+        # for k, v in log_dict_train.items():
+        #     logger.write('{} {:8f} | '.format(k, v))
         if val_intervals > 0 and epoch % val_intervals == 0:
             save_model(os.path.join(opt.save_dir, 'model_{}.pth'.format(epoch)),
                        epoch, model, optimizer)

@@ -147,7 +147,7 @@ class BaseTrainer(object):
         results = {}
         data_time, batch_time = AverageMeter(), AverageMeter()
         avg_loss_stats = {l: AverageMeter() for l in self.loss_stats}
-        num_iters = len(data_loader) // 20
+        num_iters = len(data_loader)
         end = time.time()
 
         for iter_id, (im_id, batch) in enumerate(data_loader):

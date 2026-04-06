@@ -644,7 +644,7 @@ class DLASeg(nn.Module):
         super(DLASeg, self).__init__()
         self.first_level = 0  
         self.last_level = 3 
-        self.base = dla34(pretrained=False)
+        self.base = dla34(pretrained=True)
 
         self.bifpn = BiFPN_Layer(channels=[16, 32, 64, 128, 256])
         

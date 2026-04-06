@@ -68,6 +68,20 @@ def load_model(model, model_path, optimizer=None, resume=False,
             print('Resumed optimizer with start lr', start_lr)
         else:
             print('No optimizer parameters in checkpoint.')
+    
+    loaded = 0
+    total = 0
+
+    for k in model_state_dict:
+        total += 1
+        if k in state_dict:
+            loaded += 1
+
+    print(f"Loaded {loaded}/{total} params")
+    
+    print("Loaded keys:", len(state_dict))
+    print("Model keys:", len(model_state_dict))
+
     if optimizer is not None:
         return model, optimizer, start_epoch
     else:

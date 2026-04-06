@@ -77,10 +77,6 @@ def load_model(model, model_path, optimizer=None, resume=False,
         if k in state_dict:
             loaded += 1
 
-    print(f"Loaded {loaded}/{total} params")
-    
-    print("Loaded keys:", len(state_dict))
-    print("Model keys:", len(model_state_dict))
 
     if optimizer is not None:
         return model, optimizer, start_epoch

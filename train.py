@@ -60,21 +60,13 @@ def main(opt):
 
     print('Creating model...')
     head = {'hm': DataTrain.num_classes, 'wh': 2, 'reg': 2}
-    model = get_det_net(head, opt.model_name)  
+    # ===== Create model =====
+    model = get_det_net(head, opt.model_name)
 
-    print(opt.model_name)
-
-    # optimizer = torch.optim.Adam(model.parameters(), opt.lr)
+    # ===== Create TEMP optimizer (needed for loading) =====
+    optimizer = torch.optim.Adam(model.parameters(), opt.lr)
 
     start_epoch = 0
-
-    if(not os.path.exists(opt.save_dir)):
-        os.mkdir(opt.save_dir)
-
-    if(not os.path.exists(opt.save_results_dir)):
-        os.mkdir(opt.save_results_dir)
-
-    logger = Logger(opt)
 
     # ===== Load pretrained =====
     if opt.load_model != '':
@@ -91,11 +83,11 @@ def main(opt):
     for param in model.base3d.parameters():
         param.requires_grad = False
 
-    # ===== Optimizer only for trainable params =====
+    # ===== Re-create optimizer ONLY for trainable params =====
     optimizer = torch.optim.Adam(
         filter(lambda p: p.requires_grad, model.parameters()),
         opt.lr
-    )
+)
     # if opt.load_model != '':
     #     model, optimizer, start_epoch = load_model(
     #         model, opt.load_model, optimizer, opt.resume, opt.lr, opt.lr_step)  

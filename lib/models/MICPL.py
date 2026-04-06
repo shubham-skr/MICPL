@@ -526,11 +526,11 @@ class baseNet3D(nn.Module):
         
         x = self.branch3(x) 
         
-        # if self.training:
-        lstm_output, last_state = self.Motion(x.transpose(1,2)) 
-        motion = lstm_output[-1]
-        motion = motion.transpose(1,2)
-        x = x + motion
+        if self.training:
+            lstm_output, last_state = self.Motion(x.transpose(1,2)) 
+            motion = lstm_output[-1]
+            motion = motion.transpose(1,2)
+            x = x + motion
        
         
         layers.append(self.maxpool1(x).squeeze(2))

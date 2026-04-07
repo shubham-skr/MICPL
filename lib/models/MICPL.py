@@ -693,6 +693,14 @@ class DLASeg(nn.Module):
                 else:
                     fill_fc_weights(fc)
             self.__setattr__(head, fc)
+            
+    def train(self, mode=True):
+        super(DLASeg, self).train(mode)
+        if mode:
+            # Force the frozen backbones to ALWAYS stay in eval mode.
+            # This completely disables the Batch Size noise from ruining the model!
+            self.base.eval()
+            self.base3d.eval()
 
     def forward(self, x): 
         xx = x[:, :, 0, :, :]  

@@ -24,6 +24,7 @@ cv2.ocl.setUseOpenCL(False)
 
 def main(opt):
     torch.manual_seed(opt.seed)
+    os.makedirs(opt.save_results_dir, exist_ok=True)
     ###################################
     # torch.cuda.manual_seed_all(opt.seed)
     # np.random.seed(opt.seed)

@@ -742,8 +742,12 @@ class COCO(data.Dataset):
         return self.num_samples
 
     def save_results(self, results, save_dir, time_str):
-        json.dump(self.convert_eval_format(results),
-                  open('{}/results_{}.json'.format(save_dir,time_str), 'w'))
+        os.makedirs(save_dir, exist_ok=True)
+
+        json.dump(
+            self.convert_eval_format(results),
+            open('{}/results_{}.json'.format(save_dir, time_str), 'w')
+        )
 
         print('{}/results_{}.json'.format(save_dir,time_str))
 
@@ -789,18 +793,28 @@ class COCO(data.Dataset):
         num_objs = min(len(anns), self.max_objs)
 
         seq_num = self.seqLen
-        imIdex = int(file_name.split('.')[0].split('/')[-1])
-        imf = file_name.split(file_name.split('/')[-1])[0]
-        imtype = '.'+file_name.split('.')[-1]
         img = np.zeros([self.resolution[0], self.resolution[1], 3, seq_num])
 
         for ii in range(seq_num):
-            imIndexNew = '%06d' % max(imIdex - ii, 1)
-            imName = imf+imIndexNew+imtype
-            im = cv2.imread(self.img_dir + imName)
-            if(ii==0):
+            # 🔥 TEMPORAL SAFETY CHECK
+            # Subtracting 'ii' safely requests the previous frame of the SAME video.
+            target_img_id = img_id - ii
+            
+            # If the frame crossed a video boundary (e.g., frame 0) or was removed 
+            # by your 50% data cut, it won't exist in the JSON.
+            if target_img_id in self.coco.imgs:
+                target_file_name = self.coco.imgs[target_img_id]['file_name']
+            else:
+                # Fallback: Replicate the current frame (Standard ConvLSTM padding)
+                target_file_name = file_name
+                
+            im_path = os.path.join(self.img_dir, target_file_name)
+            im = cv2.imread(im_path)
+            
+            if ii == 0:
                 imgOri = im
-            #normalize
+                
+            # normalize
             inp_i = (im.astype(np.float32) / 255.)
             inp_i = (inp_i - self.mean) / self.std
             img[:,:,:,ii] = inp_i

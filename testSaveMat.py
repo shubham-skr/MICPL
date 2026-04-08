@@ -65,9 +65,7 @@ def post_process(dets, meta, num_classes=1, scale=1):
         dets[0][j][:, :4] /= scale
     return dets[0]
 
-# ✅ CORRECTED pre_process function
 def pre_process(image, scale=1):
-    # Grab the 4th and 5th dimensions (Height and Width) from the 5D tensor
     height, width = image.shape[3:5]
     
     new_height = int(height * scale)
@@ -77,10 +75,11 @@ def pre_process(image, scale=1):
     c = np.array([new_width / 2., new_height / 2.], dtype=np.float32)
     s = max(height, width) * 1.0
 
+    # 🔥 FIX: Divide by 4 to tell the post-processor the feature map size
     meta = {'c': c, 's': s,
-            'out_height': inp_height ,
-            'out_width': inp_width}
-    return meta
+            'out_height': inp_height // 4, 
+            'out_width': inp_width // 4}
+    return meta 
 
 def merge_outputs(detections, num_classes ,max_per_image):
     results = {}

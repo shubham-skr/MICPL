@@ -164,9 +164,10 @@ class BaseTrainer(object):
             c = np.array([inp_width / 2., inp_height / 2.], dtype=np.float32)
             s = max(inp_height, inp_width) * 1.0
 
+            # 🔥 FIX: Divide by opt.down_ratio so the post-processor knows the feature map size
             meta = {'c': c, 's': s,
-                    'out_height': inp_height,
-                    'out_width': inp_width}
+                    'out_height': inp_height // opt.down_ratio,
+                    'out_width': inp_width // opt.down_ratio}
 
             dets = post_process(output, meta)
             ret = merge_outputs([dets], num_classes=1, max_per_image=opt.K)

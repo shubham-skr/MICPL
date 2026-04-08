@@ -83,20 +83,20 @@ def main(opt):
             model, opt.load_model, optimizer, opt.resume, opt.lr, opt.lr_step
         )
 
-    # ===== Freeze backbone =====
-    # print("❄️ Freezing backbone...")
+#     # ===== Freeze backbone =====
+#     print("❄️ Freezing backbone...")
 
-    # for param in model.base.parameters():
-    #     param.requires_grad = False
+#     for param in model.base.parameters():
+#         param.requires_grad = False
 
-    # for param in model.base3d.parameters():
-    #     param.requires_grad = False
+#     for param in model.base3d.parameters():
+#         param.requires_grad = False
 
-    # # ===== Re-create optimizer ONLY for trainable params =====
-    # optimizer = torch.optim.Adam(
-    #     filter(lambda p: p.requires_grad, model.parameters()),
-    #     opt.lr
-)
+#     # ===== Re-create optimizer ONLY for trainable params =====
+#     optimizer = torch.optim.Adam(
+#         filter(lambda p: p.requires_grad, model.parameters()),
+#         opt.lr
+# )
     # if opt.load_model != '':
     #     model, optimizer, start_epoch = load_model(
     #         model, opt.load_model, optimizer, opt.resume, opt.lr, opt.lr_step)  

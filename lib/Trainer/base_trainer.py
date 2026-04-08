@@ -116,12 +116,12 @@ class BaseTrainer(object):
                 self.optimizer.step()
             batch_time.update(time.time() - end)
 
-            # print('phase=%s, epoch=%5d, iters=%d/%d,time=%0.4f, loss=%0.4f, hm_loss=%0.4f, wh_loss=%0.4f, off_loss=%0.4f' \
-            #       % (phase, epoch,iter_id+1,num_iters, time.time() - end,
-            #          loss.mean().cpu().detach().numpy(),
-            #          loss_stats['hm_loss'].mean().cpu().detach().numpy(),
-            #          loss_stats['wh_loss'].mean().cpu().detach().numpy(),
-            #          loss_stats['off_loss'].mean().cpu().detach().numpy()))
+            print('phase=%s, epoch=%5d, iters=%d/%d,time=%0.4f, loss=%0.4f, hm_loss=%0.4f, wh_loss=%0.4f, off_loss=%0.4f' \
+                  % (phase, epoch,iter_id+1,num_iters, time.time() - end,
+                     loss.mean().cpu().detach().numpy(),
+                     loss_stats['hm_loss'].mean().cpu().detach().numpy(),
+                     loss_stats['wh_loss'].mean().cpu().detach().numpy(),
+                     loss_stats['off_loss'].mean().cpu().detach().numpy()))
 
             end = time.time()
 
@@ -176,12 +176,12 @@ class BaseTrainer(object):
             loss = loss.mean()
             batch_time.update(time.time() - end)
 
-            # print('phase=%s, epoch=%5d, iters=%d/%d,time=%0.4f, loss=%0.4f, hm_loss=%0.4f, wh_loss=%0.4f, off_loss=%0.4f' \
-            #       % (phase, epoch,iter_id+1,num_iters, time.time() - end,
-            #          loss.mean().cpu().detach().numpy(),
-            #          loss_stats['hm_loss'].mean().cpu().detach().numpy(),
-            #          loss_stats['wh_loss'].mean().cpu().detach().numpy(),
-            #          loss_stats['off_loss'].mean().cpu().detach().numpy()))
+            print('phase=%s, epoch=%5d, iters=%d/%d,time=%0.4f, loss=%0.4f, hm_loss=%0.4f, wh_loss=%0.4f, off_loss=%0.4f' \
+                  % (phase, epoch,iter_id+1,num_iters, time.time() - end,
+                     loss.mean().cpu().detach().numpy(),
+                     loss_stats['hm_loss'].mean().cpu().detach().numpy(),
+                     loss_stats['wh_loss'].mean().cpu().detach().numpy(),
+                     loss_stats['off_loss'].mean().cpu().detach().numpy()))
             end = time.time()
 
             for l in avg_loss_stats:
